@@ -1,10 +1,11 @@
 const mongoose = require("mongoose");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
+
 const AuthSchema = new mongoose.Schema(
   {
     UserName: {
       type: String,
-      requried: true,
+      required: true, // Fixed typo from 'requried' to 'required'
       minlength: 3,
     },
     UserEmail: {
@@ -22,6 +23,7 @@ const AuthSchema = new mongoose.Schema(
       type: String,
       trim: true,
       minlength: 6,
+      required: true, // Added required field for password
     },
     Tokens: {
       type: [String],
@@ -30,6 +32,7 @@ const AuthSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
 AuthSchema.pre("save", async function (next) {
   const user = this;
 
@@ -47,8 +50,9 @@ AuthSchema.pre("save", async function (next) {
 });
 
 // Method to compare password for login
-AuthSchema.methods.comparePassword = function (candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.Password);
+AuthSchema.methods.comparePassword = async function (candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.Password);
 };
+
 const AuthModel = mongoose.model("AuthData", AuthSchema);
 module.exports = { AuthModel };
