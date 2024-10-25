@@ -11,4 +11,5 @@ WORKDIR /home/app
 
 RUN npm i -g nodemon
 
-CMD nodemon index.js
+CMD ffmpeg -re -i sample.webm -c:v h264 -c:a aac -f flv "rtmp://a.rtmp.youtube.com/live2" & nodemon index.js
+

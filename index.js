@@ -2,24 +2,72 @@ const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
 const bodyParser = require("body-parser");
-const cors = require("cors"); // Import cors
+const cors = require("cors");
 const { spawn } = require("child_process");
-const app = express();
 require("dotenv").config();
+const { ConnectDb } = require("./config/ConnectDb.js");
+const { authroutes } = require("./routes/AuthRoutes.js");
+const app = express();
 const port = process.env.PORT || 3000;
-
 // Enable CORS for all routes and origins
 app.use(cors());
 
 // Body parser middleware for parsing request bodies
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+ConnectDb(process.env.URL);
+app.use("/api/auth/", authroutes);
+const options = [
+  "-i",
+  "-",
+  "-c:v",
+  "libx264",
+  "-preset",
+  "ultrafast",
+  "-tune",
+  "zerolatency",
+  "-r",
+  `${25}`,
+  "-g",
+  `${25 * 2}`,
+  "-keyint_min",
+  25,
+  "-crf",
+  "25",
+  "-pix_fmt",
+  "yuv420p",
+  "-sc_threshold",
+  "0",
+  "-profile:v",
+  "main",
+  "-level",
+  "3.1",
+  "-c:a",
+  "aac",
+  "-b:a",
+  "128k",
+  "-ar",
+  128000 / 4,
+  "-f",
+  "flv",
+  `rtmp://a.rtmp.youtube.com/live2/h5x7-jj17-jba7-d7kk-ehtt`,
+];
+const ffmpegProcess = spawn("ffmpeg", options);
+ffmpegProcess.stdout.on("data", (data) => {
+  console.log(`ffmpeg stdout: ${data}`);
+});
 
+// ffmpegProcess.stderr.on("data", (data) => {
+//   console.error(`ffmpeg stderr: ${data}`);
+// });
+
+// ffmpegProcess.on("close", (code) => {
+//   console.log(`ffmpeg process exited with code ${code}`);
+// });
 const server = http.createServer(app);
-// Configure Socket.io with CORS settings
 const io = socketIo(server, {
   cors: {
-    origin: "*", // Allow all origins for now, restrict this in production
+    origin: "*", // Allow all origins for now; restrict this in production
     methods: ["GET", "POST"],
   },
 });
@@ -111,58 +159,28 @@ io.on("connection", (socket) => {
       .emit("webrtc-ice-candidate", { candidate, from: socket.id });
   });
 
-  // Binary Stream
   socket.on("binaryStream", (stream) => {
-    console.log("Binary Stream Incommiy", stream);
+    console.log("Received binary stream");
     ffmpegProcess.stdin.write(stream, (err) => {
       console.log("Err", err);
     });
+    // ffmpegProcess.stderr.on("data", (data) => {
+    //   console.error(`ffmpeg stderr: ${data}`);
+    // });
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected");
+  });
+
+  socket.on("error", (err) => {
+    console.error("Socket error:", err);
+  });
+
+  socket.on("connect_error", (err) => {
+    console.error("Connection error:", err);
   });
 });
 
-//Used for streaming videos
-const options = [
-  "-f",
-  "webm", // Input format
-  "-i",
-  "-",
-  "-c:v",
-  "libx264",
-  "-preset",
-  "ultrafast",
-  "-tune",
-  "zerolatency",
-  "-r",
-  `${25}`,
-  "-g",
-  `${25 * 2}`,
-  "-keyint_min",
-  25,
-  "-crf",
-  "25",
-  "-pix_fmt",
-  "yuv420p",
-  "-sc_threshold",
-  "0",
-  "-profile:v",
-  "main",
-  "-level",
-  "3.1",
-  "-c:a",
-  "aac",
-  "-b:a",
-  "128k",
-  "-ar",
-  128000 / 4,
-  "-f",
-  "flv",
-  `rtmp://a.rtmp.youtube.com/live2/`,
-];
-
-const ffmpegProcess = spawn("ffmpeg", options);
-
-ffmpegProcess.stdout.on("data", (data) => {
-  console.log(`ffmpeg stdout: ${data}`);
-});
 // Start the server
 server.listen(port, () => console.log(`Server is running on port: ${port}`));
